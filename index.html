@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QKD Simulator — BB84 &amp; E91 Quantum Key Distribution</title>
+  <meta name="description" content="Interactive 3D visual simulator for BB84 and E91 Quantum Key Distribution protocols, powered by Qiskit quantum circuits." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="module" crossorigin src="./assets/index-J-cByoMz.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-gGgyBfxA.css">
+</head>
+<body>
+  <!-- Three.js Canvas -->
+  <canvas id="three-canvas"></canvas>
+
+  <!-- ─── Top Bar ─────────────────────────────────────────────── -->
+  <header id="top-bar">
+    <div class="logo">
+      <span class="logo-icon">◈</span>
+      <span class="logo-text">QKD Simulator</span>
+    </div>
+    <div class="protocol-switch">
+      <button id="btn-bb84" class="proto-btn active" data-protocol="bb84">BB84</button>
+      <button id="btn-e91" class="proto-btn" data-protocol="e91">E91</button>
+    </div>
+    <div class="top-bar-right">
+      <div class="camera-hint" id="camera-hint">
+        <span class="camera-hint-icon">🎥</span>
+        <span class="camera-hint-text">Drag to orbit · Scroll to zoom</span>
+      </div>
+      <div class="status-indicator">
+        <span class="dot" id="api-dot"></span>
+        <span id="api-status-text">Connecting…</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ─── Side Panel ──────────────────────────────────────────── -->
+  <aside id="side-panel">
+    <!-- Controls Section -->
+    <section class="panel-section" id="controls-section">
+      <h2>Controls</h2>
+
+      <!-- Eve toggle -->
+      <div class="control-row">
+        <label for="eve-toggle">Eve (Eavesdropper)</label>
+        <label class="switch">
+          <input type="checkbox" id="eve-toggle" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <!-- Photon count slider (for run protocol) -->
+      <div class="control-row" id="photon-count-row">
+        <label for="photon-slider">Photons / Pairs</label>
+        <div class="slider-group">
+          <input type="range" id="photon-slider" min="10" max="200" value="50" step="10" />
+          <span id="photon-count-display" class="mono">50</span>
+        </div>
+      </div>
+
+      <!-- BB84 manual controls -->
+      <div id="bb84-manual-controls">
+        <div class="control-row">
+          <label>Alice's Bit</label>
+          <div class="btn-group">
+            <button class="sel-btn active" data-group="alice-bit" data-val="0">0</button>
+            <button class="sel-btn" data-group="alice-bit" data-val="1">1</button>
+            <button class="sel-btn" data-group="alice-bit" data-val="random">⟳</button>
+          </div>
+        </div>
+        <div class="control-row">
+          <label>Alice's Basis</label>
+          <div class="btn-group">
+            <button class="sel-btn active" data-group="alice-basis" data-val="+">+ Rect</button>
+            <button class="sel-btn" data-group="alice-basis" data-val="x">× Diag</button>
+            <button class="sel-btn" data-group="alice-basis" data-val="random">⟳</button>
+          </div>
+        </div>
+        <div class="control-row">
+          <label>Bob's Basis</label>
+          <div class="btn-group">
+            <button class="sel-btn active" data-group="bob-basis" data-val="+">+ Rect</button>
+            <button class="sel-btn" data-group="bob-basis" data-val="x">× Diag</button>
+            <button class="sel-btn" data-group="bob-basis" data-val="random">⟳</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="action-buttons">
+        <button id="btn-send-photon" class="action-btn primary">
+          <span class="btn-icon">⚛</span> Send Photon
+        </button>
+        <button id="btn-run-protocol" class="action-btn secondary">
+          <span class="btn-icon">▶</span> Run Full Protocol
+        </button>
+      </div>
+    </section>
+
+    <!-- Metrics -->
+    <section class="panel-section" id="metrics-section">
+      <h2>Metrics</h2>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <span class="metric-label">Sifted Key Length</span>
+          <span class="metric-value mono" id="metric-sifted">—</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Error Rate</span>
+          <span class="metric-value mono" id="metric-error">—</span>
+        </div>
+        <div class="metric-card" id="chsh-card" style="display:none;">
+          <span class="metric-label">CHSH Value</span>
+          <span class="metric-value mono" id="metric-chsh">—</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Channel Status</span>
+          <span class="metric-value" id="metric-status">—</span>
+        </div>
+      </div>
+      <!-- Error Rate Bar -->
+      <div class="error-bar-container">
+        <div class="error-bar-label">Error Rate</div>
+        <div class="error-bar-track">
+          <div class="error-bar-fill" id="error-bar-fill"></div>
+          <div class="error-bar-threshold" style="left: 11%;"></div>
+        </div>
+        <div class="error-bar-labels">
+          <span>0%</span>
+          <span class="threshold-label">11%</span>
+          <span>50%</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Error Rate History Chart -->
+    <section class="panel-section" id="chart-section">
+      <h2>QBER History</h2>
+      <canvas id="error-chart-canvas" style="width:100%; height:140px;"></canvas>
+    </section>
+
+    <!-- Sifted Key Display -->
+    <section class="panel-section" id="key-section">
+      <h2>Sifted Key</h2>
+      <div class="key-display mono" id="key-display">Send photons to generate a key…</div>
+    </section>
+
+    <!-- Protocol Ledger -->
+    <section class="panel-section" id="ledger-section">
+      <h2>Protocol Ledger</h2>
+      <div class="ledger-scroll">
+        <table id="ledger-table">
+          <thead>
+            <tr id="ledger-header">
+              <!-- Populated by JS based on protocol -->
+            </tr>
+          </thead>
+          <tbody id="ledger-body">
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </aside>
+
+  <!-- ─── Info / Bloch overlay ────────────────────────────────── -->
+  <div id="bloch-overlay">
+    <canvas id="bloch-canvas" width="220" height="220"></canvas>
+    <div id="bloch-label" class="mono">|0⟩</div>
+  </div>
+
+  <!-- ─── Educational Narrator Panel ──────────────────────────── -->
+  <div id="narrator-panel">
+    <div class="narrator-titlebar">
+      <button id="narrator-toggle" class="narrator-toggle-btn">▾ Learn</button>
+      <span class="narrator-subtitle">Step-by-step quantum explanation</span>
+    </div>
+    <div id="narrator-feed" class="narrator-feed"></div>
+  </div>
+
+  <!-- ─── Loading Overlay ─────────────────────────────────────── -->
+  <div id="loading-overlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">Initializing quantum simulator…</div>
+  </div>
+
+</body>
+</html>
